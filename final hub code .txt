@@ -159,7 +159,7 @@ void storeVariables(String data, int roomIndex) {
   endPos = data.indexOf(" kW", startPos);
   power2 = data.substring(startPos, endPos).toFloat();
 
-  startPos = data.indexOf("Energy2: ") + 10;
+  startPos = data.indexOf("Energy2: ") + 9;
   endPos = data.indexOf(" kWh", startPos);
   energy2 = data.substring(startPos, endPos).toFloat();
 
@@ -175,7 +175,7 @@ void storeVariables(String data, int roomIndex) {
   endPos = data.indexOf(" kW", startPos);
   power3 = data.substring(startPos, endPos).toFloat();
 
-  startPos = data.indexOf("Energy3: ") + 10;
+  startPos = data.indexOf("Energy3: ") + 9;
   endPos = data.indexOf(" kWh", startPos);
   energy3 = data.substring(startPos, endPos).toFloat();
 }
@@ -192,16 +192,11 @@ int findRoomIndex(String roomID) {
 
   return -1; // Return -1 if room ID not found
 }
-void sendfirebase(){
-//temperature and humidity measured should be stored in variables so the user
-  //can use it later in the database
-  
+void sendfirebase(){  
     if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 1000 || sendDataPrevMillis == 0)) {
       //since we want the data to be updated every second
       sendDataPrevMillis = millis();
-      
-      // Enter Voltage in the Smart_Meter table
-      if (Firebase.RTDB.setInt(&fbdo, "Smart_Meter/Voltage", voltage1)) {
+      if (Firebase.RTDB.setInt(&fbdo, "Room_1/Voltage", voltage1)) {
         // This command will be executed even if you don't serial print, but we will make sure it's working
         Serial.print("Voltage : ");
         Serial.println(voltage1);
@@ -209,18 +204,16 @@ void sendfirebase(){
         Serial.println("Failed to write Voltage to the RTDB");
         Serial.println("Reason: " + fbdo.errorReason());
       }
-      
       // Enter Current in the Smart_Meter table
-      if (Firebase.RTDB.setFloat(&fbdo, "Smart_Meter/Current", current1)) {
+      if (Firebase.RTDB.setFloat(&fbdo, "Room_1/Current", current1)) {
         Serial.print("Current : ");
         Serial.print(current1);
       } else {
         Serial.println("Failed to write Current to the RTDB");
         Serial.println("Reason: " + fbdo.errorReason());
       }
-      
       // Enter Power in the Smart_Meter table
-      if (Firebase.RTDB.setInt(&fbdo, "Smart_Meter/Power", power1)) {
+      if (Firebase.RTDB.setInt(&fbdo, "Room_1/Power", power1)) {
         Serial.print("Power : ");
         Serial.println(power1);
       } else {
@@ -229,7 +222,73 @@ void sendfirebase(){
       }
 
       // Enter Energy in the Smart_Meter table
-      if (Firebase.RTDB.setFloat(&fbdo, "Smart_Meter/Energy", energy1)) {
+      if (Firebase.RTDB.setFloat(&fbdo, "Room_1/Energy", energy1)) {
+        Serial.print("Energy : ");
+        Serial.print(energy1);
+      } else {
+        Serial.println("Failed to write Energy to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+       if (Firebase.RTDB.setInt(&fbdo, "Room_2/Voltage", voltage2)) {
+        // This command will be executed even if you don't serial print, but we will make sure it's working
+        Serial.print("Voltage : ");
+        Serial.println(voltage1);
+      } else {
+        Serial.println("Failed to write Voltage to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+      // Enter Current in the Smart_Meter table
+      if (Firebase.RTDB.setFloat(&fbdo, "Room_2/Current", current2)) {
+        Serial.print("Current : ");
+        Serial.print(current1);
+      } else {
+        Serial.println("Failed to write Current to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+      // Enter Power in the Smart_Meter table
+      if (Firebase.RTDB.setInt(&fbdo, "Room_2/Power", power2)) {
+        Serial.print("Power : ");
+        Serial.println(power1);
+      } else {
+        Serial.println("Failed to write Power to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+
+      // Enter Energy in the Smart_Meter table
+      if (Firebase.RTDB.setFloat(&fbdo, "Room_2/Energy", energy2)) {
+        Serial.print("Energy : ");
+        Serial.print(energy1);
+      } else {
+        Serial.println("Failed to write Energy to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+       if (Firebase.RTDB.setInt(&fbdo, "Room_3/Voltage", voltage3)) {
+        // This command will be executed even if you don't serial print, but we will make sure it's working
+        Serial.print("Voltage : ");
+        Serial.println(voltage1);
+      } else {
+        Serial.println("Failed to write Voltage to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+      // Enter Current in the Smart_Meter table
+      if (Firebase.RTDB.setFloat(&fbdo, "Room_3/Current", current3)) {
+        Serial.print("Current : ");
+        Serial.print(current1);
+      } else {
+        Serial.println("Failed to write Current to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+      // Enter Power in the Smart_Meter table
+      if (Firebase.RTDB.setInt(&fbdo, "Room_3/Power", power3)) {
+        Serial.print("Power : ");
+        Serial.println(power1);
+      } else {
+        Serial.println("Failed to write Power to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+
+      // Enter Energy in the Smart_Meter table
+      if (Firebase.RTDB.setFloat(&fbdo, "Room_3/Energy", energy3)) {
         Serial.print("Energy : ");
         Serial.print(energy1);
       } else {
