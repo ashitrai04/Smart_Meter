@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>LED Scheduler</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+
+    form {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    input[type="number"] {
+      width: 50px;
+    }
+
+    button[type="submit"] {
+      padding: 10px 20px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    #schedules {
+      margin-top: 20px;
+    }
+
+    .schedule {
+      margin-bottom: 10px;
+    }
+
+    .schedule .delete {
+      margin-left: 10px;
+      color: red;
+      cursor: pointer;
+    }
+
+    #message {
+      margin-top: 20px;
+      display: none;
+    }
+
+    #message.success {
+      color: green;
+    }
+
+    #message.error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <h1>LED Scheduler</h1>
+
+  <form id="scheduleForm">
+    <label for="hour">Hour:</label>
+    <input type="number" id="hour" name="hour" min="0" max="23" required>
+
+    <label for="minute">Minute:</label>
+    <input type="number" id="minute" name="minute" min="0" max="59" required>
+
+    <label for="duration">Duration (in minutes):</label>
+    <input type="number" id="duration" name="duration" min="1" required>
+
+    <button type="submit">Add Schedule</button>
+  </form>
+
+  <div id="schedules"></div>
+
+  <div id="message"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
+  <script>
+    // Initialize Firebase
+    var firebaseConfig = {
+      // Your Firebase configuration
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    var database = firebase.database();
+
+    // Handle form submission
+    document.getElementById("scheduleForm").addEventListener("submit", function(event) {
+      event.preventDefault();
+
+      // Get schedule input values
+      var hour = parseInt(document.getElementById("hour").value);
+      var minute = parseInt(document.getElementById("minute").value);
+      var duration = parseInt(document.getElementById("duration").value);
+
+      // Create schedule object
+      var schedule = {
+        hour: hour,
+        minute: minute,
+        duration: duration
+      };
+
+      // Save schedule data to Firebase database
+      database.ref("ledSchedules").push(schedule)
+        .then(function() {
+          showMessage("Schedule added successfully!", "success");
+          clearFormInputs();
+        })
+        .catch(function(error) {
+          showMessage("Error adding schedule: " + error.message, "error");
+        });
+    });
+
+    // Listen for changes in the LED schedules
+    database.ref("ledSchedules").on("value", function(snapshot) {
+      var schedules = snapshot.val();
+      var schedulesList = document.getElementById("schedules");
+      schedulesList.innerHTML = "";
+
+      for (var key in schedules) {
+        if (schedules.hasOwnProperty(key)) {
+          var schedule = schedules[key];
+          var scheduleElement = document.createElement("div");
+          scheduleElement.className = "schedule";
+          scheduleElement.textContent = schedule.hour + ":" + schedule.minute + " - Duration: " + schedule.duration + " minutes";
+
+          var deleteButton = document.createElement("span");
+          deleteButton.className = "delete";
+          deleteButton.textContent = "Delete";
+          deleteButton.setAttribute("data-key", key);
+          deleteButton.addEventListener("click", deleteSchedule);
+
+          scheduleElement.appendChild(deleteButton);
+          schedulesList.appendChild(scheduleElement);
+        }
+      }
+    }, function(error) {
+      console.error("Error retrieving schedules:", error);
+    });
+
+    // Delete a schedule
+    function deleteSchedule() {
+      var scheduleKey = this.getAttribute("data-key");
+      if (scheduleKey) {
+        database.ref("ledSchedules").child(scheduleKey).remove()
+          .then(function() {
+            showMessage("Schedule deleted successfully!", "success");
+          })
+          .catch(function(error) {
+            showMessage("Error deleting schedule: " + error.message, "error");
+          });
+      }
+    }
+
+    // Show message on the page
+    function showMessage(message, messageType) {
+      var messageElement = document.getElementById("message");
+      messageElement.textContent = message;
+      messageElement.className = messageType;
+      messageElement.style.display = "block";
+    }
+
+    // Clear form inputs
+    function clearFormInputs() {
+      document.getElementById("hour").value = "";
+      document.getElementById("minute").value = "";
+      document.getElementById("duration").value = "";
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+#include <WiFi.h>
+WiFiServer server(80);
+
+const int ledPin = 13; // LED pin
+
+float voltage1;
+float current1;
+float power1;
+float energy1;
+
+float voltage2;
+float current2;
+float power2;
+float energy2;
+
+float voltage3;
+float current3;
+float power3;
+float energy3;
+
+void setup() {
+  Serial.begin(115200);
+  WiFi.begin("iPhone", "ashit@123");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+
+  // Print server IP address
+  Serial.print("Server IP address: ");
+  Serial.println(WiFi.localIP());
+
+  pinMode(ledPin, OUTPUT);
+
+  server.begin();
+}
+
+void loop() {
+  // Check if there are new client connections
+  if (server.hasClient()) {
+    WiFiClient newClient = server.available();
+    String clientID = newClient.readStringUntil('\r');
+    String roomID = clientID.substring(0, clientID.indexOf('_')); // Extract room ID from client ID
+    int roomIndex = findRoomIndex(roomID);
+
+    if (roomIndex != -1) {
+      Serial.print("New client connected: ");
+      Serial.println(clientID);
+
+      // Store the received variables in the respective variables
+      storeVariables(newClient.readStringUntil('\r'), roomIndex);
+    }
+  }
+
+  // Print the values of voltage1, current1, power1, and energy1
+  Serial.println("Voltage1: " + String(voltage1) + " V");
+  Serial.println("Current1: " + String(current1) + " A");
+  Serial.println("Power1: " + String(power1) + " kW");
+  Serial.println("Energy1: " + String(energy1) + " kWh");
+
+  // Print the values of voltage2, current2, power2, and energy2
+  Serial.println("Voltage2: " + String(voltage2) + " V");
+  Serial.println("Current2: " + String(current2) + " A");
+  Serial.println("Power2: " + String(power2) + " kW");
+  Serial.println("Energy2: " + String(energy2) + " kWh");
+
+  // Print the values of voltage3, current3, power3, and energy3
+  Serial.println("Voltage3: " + String(voltage3) + " V");
+  Serial.println("Current3: " + String(current3) + " A");
+  Serial.println("Power3: " + String(power3) + " kW");
+  Serial.println("Energy3: " + String(energy3) + " kWh");
+
+  // Check if the received data contains the request to turn on/off the LED
+  if (Serial.available()) {
+    String request = Serial.readStringUntil('\n');
+    if (request.indexOf("turnon led") != -1) {
+      digitalWrite(ledPin, HIGH); // Turn on the LED
+      Serial.println("LED turned on");
+    } else if (request.indexOf("turnoff led") != -1) {
+      digitalWrite(ledPin, LOW); // Turn off the LED
+      Serial.println("LED turned off");
+    }
+  }
+
+  // Clear the input buffer
+  while (Serial.available()) {
+    Serial.read();
+  }
+
+  delay(5000); // Print values every 5 seconds
+}
+
+void storeVariables(String data, int roomIndex) {
+  // Parse the received data and store the variables
+  int startPos = data.indexOf("Voltage1: ") + 10;
+  int endPos = data.indexOf(" V");
+  voltage1 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Current1: ") + 10;
+  endPos = data.indexOf(" A");
+  current1 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Power1: ") + 8;
+  endPos = data.indexOf(" kW");
+  power1 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Energy1: ") + 9;
+  endPos = data.indexOf(" kWh");
+  energy1 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Voltage2: ") + 10;
+  endPos = data.indexOf(" V", startPos);
+  voltage2 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Current2: ") + 10;
+  endPos = data.indexOf(" A", startPos);
+  current2 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Power2: ") + 8;
+  endPos = data.indexOf(" kW", startPos);
+  power2 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Energy2: ") + 10;
+  endPos = data.indexOf(" kWh", startPos);
+  energy2 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Voltage3: ") + 10;
+  endPos = data.indexOf(" V", startPos);
+  voltage3 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Current3: ") + 10;
+  endPos = data.indexOf(" A", startPos);
+  current3 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Power3: ") + 8;
+  endPos = data.indexOf(" kW", startPos);
+  power3 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Energy3: ") + 10;
+  endPos = data.indexOf(" kWh", startPos);
+  energy3 = data.substring(startPos, endPos).toFloat();
+}
+
+int findRoomIndex(String roomID) {
+  // Define the room IDs in an array
+  String roomIDs[] = {"room1", "room2", "room3"};
+
+  // Loop through the room IDs array and find the index of the matching room ID
+  for (int i = 0; i < sizeof(roomIDs) / sizeof(roomIDs[0]); i++) {
+    if (roomIDs[i] == roomID) {
+      return i;
+    }
+  }
+
+  return -1; // Return -1 if room ID not found
+}

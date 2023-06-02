@@ -1,0 +1,36 @@
+float voltage;
+float current;
+float power;
+static float energy = 0.0; // Static variable to store the energy consumption
+unsigned long previousMillis = 0;
+unsigned long interval = 1000;  // Interval in milliseconds
+
+void setup() {
+  Serial.begin(115200);
+}
+
+void loop() {
+  unsigned long currentMillis = millis();
+  
+  // Read sensor values every second
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
+    
+    // Generate random voltage and current values
+    voltage = generateRandomValue(200, 240);   // Range: 200V to 240V
+    current = generateRandomValue(0.5, 5.0);   // Range: 0.5A to 5.0A
+    
+    // Calculate power in kilowatts (kW)
+    power = voltage * current / 1000.0;   // Power in kilowatts (kW)
+    
+    // Calculate energy consumption in kilowatt-hours (kWh)
+    energy += power * (interval / 3600000.0);  // Energy in kilowatt-hours (kWh)
+    
+    // Print the data to the serial monitor
+   
+  }
+}
+
+float generateRandomValue(float minVal, float maxVal) {
+  return random(minVal * 100, maxVal * 100) / 100.0;  // Scale the random value to two decimal places
+}

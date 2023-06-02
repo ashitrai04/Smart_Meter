@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Smart Meter</title>
+	<style type="text/css">
+		body{
+			background-color: #F5F5F5;
+			font-family: Arial, sans-serif;
+			margin: 0;
+			padding: 0;
+		}
+		.data-container{
+			display: flex;
+			justify-content: space-between;
+			width: 50%;
+			margin: 50px auto;
+			padding: 20px;
+			background-color: #FFF;
+			box-shadow: 0 2px 20px rgba(0, 0, 0,0.1);
+			border-radius: 10px;
+		}
+		.data-item{
+			text-align: center;
+			margin: 10px; /* Added margin for spacing */
+		}
+		.data-item h2{
+			font-size: 18px; /* Decreased font size */
+			font-weight: bold;
+			margin-bottom: 10px;
+		}
+		.data-item p{
+			font-size: 24px; /* Decreased font size */
+			font-weight: bold;
+			color: #6EB7FF;
+			margin-top: 5px; /* Added margin for spacing */
+		}
+		.data-head{
+			margin: auto;
+			width: 50%;
+			text-align: center;
+			font-size: 36px; /* Decreased font size */
+			font-weight: bold;
+			margin: 50px auto;
+			padding: 20px;
+			background-color: #FFF;
+			box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+			border-radius: 20px;
+		}
+	</style>
+</head>
+<body>
+	<div class="data-head">HUB Smart Meter</div>
+	<div class="data-container">
+		<div class="data-item">
+			<h2>Voltage</h2>
+			<p class="value" id="voltage">22 &#8451;</p>
+		</div>
+		<div class="data-item">
+			<h2>Current</h2>
+			<p class="value" id="current">10%</p>
+		</div>
+		<div class="data-item">
+			<h2>Power</h2>
+			<p class="value" id="power">1000 hPa</p>
+		</div>
+		<div class="data-item">
+			<h2>Energy</h2>
+			<p class="value" id="energy">500 lux</p>
+		</div>
+	</div>
+	<!-- the scripts for products you want to access must be added-->
+	<script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-app.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-database.js"></script>
+<script type="module">
+	// Import the functions you need from the SDKs you need
+	import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+	// TODO: Add SDKs for Firebase products that you want to use
+	// https://firebase.google.com/docs/web/setup#available-libraries
+  
+	// Your web app's Firebase configuration
+	const firebaseConfig = {
+    apiKey: "AIzaSyCDCLhWeuLqjthzF-1Sp8_dUrj0VlhWr48",
+    authDomain: "web-page-18d0d.firebaseapp.com",
+    databaseURL: "https://web-page-18d0d-default-rtdb.firebaseio.com",
+    projectId: "web-page-18d0d",
+    storageBucket: "web-page-18d0d.appspot.com",
+    messagingSenderId: "427352713403",
+    appId: "1:427352713403:web:3d8787813c802b4b3de19e"
+  };
+	// Initialize Firebase
+	const app = initializeApp(firebaseConfig);
+	  // Initialize Firebase
+	  firebase.initializeApp(firebaseConfig);
+	  // getting reference to the database
+	  var database = firebase.database();
+	  //getting reference to the data we want
+  var dataRef1 = database.ref('Smart_Meter/Voltage');
+  var dataRef2 = database.ref('Smart_Meter/Current');
+  var dataRef3 = database.ref('Smart_Meter/Power');
+  var dataRef4 = database.ref('Smart_Meter/Energy');
+    //fetch the data
+	  dataRef1.on('value', function(getdata1){
+    var vol = getdata1.val();
+    document.getElementById('voltage').innerHTML = vol + "V";
+  });
+  dataRef2.on('value', function(getdata2){
+    var curr = getdata2.val();
+    document.getElementById('current').innerHTML = curr + "A";
+  });
+  dataRef3.on('value', function(getdata3){
+    var pow = getdata3.val();
+    document.getElementById('power').innerHTML = pow + " kW";
+  });
+  dataRef4.on('value', function(getdata4){
+    var ener = getdata4.val();
+    document.getElementById('energy').innerHTML = ener + " kWh";
+  });
+	</script>
+</body>
+</html>

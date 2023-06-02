@@ -1,0 +1,240 @@
+#include <Arduino.h>
+#include <WiFi.h>              
+#include <Firebase_ESP_Client.h>
+#include "addons/TokenHelper.h"
+#include "addons/RTDBHelper.h"
+#define WIFI_SSID "iPhone"
+#define WIFI_PASSWORD "ashit@123"
+#define API_KEY "AIzaSyCWEjA8SOYzqcCjypYfJnTQ7RYuXoyFHUM"
+#define DATABASE_URL "https://web-page-18d0d-default-rtdb.firebaseio.com/" 
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
+ // Interval in milliseconds
+unsigned long sendDataPrevMillis = 0;
+int count = 0;
+bool signupOK = false;  
+WiFiServer server(80);
+const int ledPin = 13; // LED pin
+
+
+float voltage1;
+float current1;
+float power1;
+float energy1;
+
+float voltage2;
+float current2;
+float power2;
+float energy2;
+
+float voltage3;
+float current3;
+float power3;
+float energy3;                   //since we are doing an anonymous sign in 
+void setup(){
+
+  pinMode(ledPin, OUTPUT);
+  Serial.begin(9600);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED){
+    Serial.print(".");
+    delay(300);
+  }
+  Serial.println();
+  Serial.print("Connected with IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.println();
+  server.begin();
+  config.api_key = API_KEY;
+  config.database_url = DATABASE_URL;
+  if (Firebase.signUp(&config, &auth, "", "")){
+Serial.println("ok");
+signupOK = true;
+  }
+  else{
+    Serial.printf("%s\n", config.signer.signupError.message.c_str());
+  }
+  config.token_status_callback = tokenStatusCallback; //see addons/TokenHelper.h
+  Firebase.begin(&config, &auth);
+  Firebase.reconnectWiFi(true);
+}
+
+void loop(){
+   while (true) {
+    if (WiFi.status() == WL_CONNECTED) {
+    clientdata();
+    sendfirebase();
+    } else {
+      // WiFi is not connected or lost connection
+      Serial.println("WiFi not available!");
+      // Your code logic when WiFi is not available goes here
+    }
+
+    delay(5000); // Delay before next iteration
+  }
+}
+
+void clientdata(){
+  if (server.hasClient()) {
+    WiFiClient newClient = server.available();
+    String clientID = newClient.readStringUntil('\r');
+    String roomID = clientID.substring(0, clientID.indexOf('_')); // Extract room ID from client ID
+    int roomIndex = findRoomIndex(roomID);
+
+    if (roomIndex != -1) {
+      Serial.print("New client connected: ");
+      Serial.println(clientID);
+
+      // Store the received variables in the respective variables
+      storeVariables(newClient.readStringUntil('\r'), roomIndex);
+    }
+  }
+
+  // Print the values of voltage1, current1, power1, and energy1
+  Serial.println("Voltage1: " + String(voltage1) + " V");
+  Serial.println("Current1: " + String(current1) + " A");
+  Serial.println("Power1: " + String(power1) + " kW");
+  Serial.println("Energy1: " + String(energy1) + " kWh");
+
+  // Print the values of voltage2, current2, power2, and energy2
+  Serial.println("Voltage2: " + String(voltage2) + " V");
+  Serial.println("Current2: " + String(current2) + " A");
+  Serial.println("Power2: " + String(power2) + " kW");
+  Serial.println("Energy2: " + String(energy2) + " kWh");
+
+  // Print the values of voltage3, current3, power3, and energy3
+  Serial.println("Voltage3: " + String(voltage3) + " V");
+  Serial.println("Current3: " + String(current3) + " A");
+  Serial.println("Power3: " + String(power3) + " kW");
+  Serial.println("Energy3: " + String(energy3) + " kWh");
+
+  // Check if the received data contains the request to turn on/off the LED
+  if (Serial.available()) {
+    String request = Serial.readStringUntil('\n');
+    if (request.indexOf("turnon led") != -1) {
+      digitalWrite(ledPin, HIGH); // Turn on the LED
+      Serial.println("LED turned on");
+    } else if (request.indexOf("turnoff led") != -1) {
+      digitalWrite(ledPin, LOW); // Turn off the LED
+      Serial.println("LED turned off");
+    }
+  }
+
+  // Clear the input buffer
+  while (Serial.available()) {
+    Serial.read();
+  }
+
+  delay(5000); // Print values every 5 seconds
+}
+void storeVariables(String data, int roomIndex) {
+  // Parse the received data and store the variables
+  int startPos = data.indexOf("Voltage1: ") + 10;
+  int endPos = data.indexOf(" V");
+  voltage1 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Current1: ") + 10;
+  endPos = data.indexOf(" A");
+  current1 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Power1: ") + 8;
+  endPos = data.indexOf(" kW");
+  power1 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Energy1: ") + 9;
+  endPos = data.indexOf(" kWh");
+  energy1 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Voltage2: ") + 10;
+  endPos = data.indexOf(" V", startPos);
+  voltage2 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Current2: ") + 10;
+  endPos = data.indexOf(" A", startPos);
+  current2 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Power2: ") + 8;
+  endPos = data.indexOf(" kW", startPos);
+  power2 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Energy2: ") + 10;
+  endPos = data.indexOf(" kWh", startPos);
+  energy2 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Voltage3: ") + 10;
+  endPos = data.indexOf(" V", startPos);
+  voltage3 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Current3: ") + 10;
+  endPos = data.indexOf(" A", startPos);
+  current3 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Power3: ") + 8;
+  endPos = data.indexOf(" kW", startPos);
+  power3 = data.substring(startPos, endPos).toFloat();
+
+  startPos = data.indexOf("Energy3: ") + 10;
+  endPos = data.indexOf(" kWh", startPos);
+  energy3 = data.substring(startPos, endPos).toFloat();
+}
+int findRoomIndex(String roomID) {
+  // Define the room IDs in an array
+  String roomIDs[] = {"room1", "room2", "room3"};
+
+  // Loop through the room IDs array and find the index of the matching room ID
+  for (int i = 0; i < sizeof(roomIDs) / sizeof(roomIDs[0]); i++) {
+    if (roomIDs[i] == roomID) {
+      return i;
+    }
+  }
+
+  return -1; // Return -1 if room ID not found
+}
+void sendfirebase(){
+//temperature and humidity measured should be stored in variables so the user
+  //can use it later in the database
+  
+    if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 1000 || sendDataPrevMillis == 0)) {
+      //since we want the data to be updated every second
+      sendDataPrevMillis = millis();
+      
+      // Enter Voltage in the Smart_Meter table
+      if (Firebase.RTDB.setInt(&fbdo, "Smart_Meter/Voltage", voltage1)) {
+        // This command will be executed even if you don't serial print, but we will make sure it's working
+        Serial.print("Voltage : ");
+        Serial.println(voltage1);
+      } else {
+        Serial.println("Failed to write Voltage to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+      
+      // Enter Current in the Smart_Meter table
+      if (Firebase.RTDB.setFloat(&fbdo, "Smart_Meter/Current", current1)) {
+        Serial.print("Current : ");
+        Serial.print(current1);
+      } else {
+        Serial.println("Failed to write Current to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+      
+      // Enter Power in the Smart_Meter table
+      if (Firebase.RTDB.setInt(&fbdo, "Smart_Meter/Power", power1)) {
+        Serial.print("Power : ");
+        Serial.println(power1);
+      } else {
+        Serial.println("Failed to write Power to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+
+      // Enter Energy in the Smart_Meter table
+      if (Firebase.RTDB.setFloat(&fbdo, "Smart_Meter/Energy", energy1)) {
+        Serial.print("Energy : ");
+        Serial.print(energy1);
+      } else {
+        Serial.println("Failed to write Energy to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+    }
+  }

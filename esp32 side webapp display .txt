@@ -1,0 +1,124 @@
+#include <Arduino.h>
+#include <WiFi.h>              
+#include <Firebase_ESP_Client.h>
+#include "addons/TokenHelper.h"
+#include "addons/RTDBHelper.h"
+#define WIFI_SSID "iPhone"
+#define WIFI_PASSWORD "ashit@123"
+
+
+#define API_KEY "AIzaSyCWEjA8SOYzqcCjypYfJnTQ7RYuXoyFHUM"
+#define DATABASE_URL "https://web-page-18d0d-default-rtdb.firebaseio.com/" 
+
+
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
+float voltage;
+float current;
+float power;
+static float energy = 0.0; // Static variable to store the energy consumption
+unsigned long previousMillis = 0;
+unsigned long interval = 1000;  // Interval in milliseconds
+unsigned long sendDataPrevMillis = 0;
+int count = 0;
+bool signupOK = false;                     //since we are doing an anonymous sign in 
+void setup(){
+
+ 
+  Serial.begin(9600);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED){
+    Serial.print(".");
+    delay(300);
+  }
+  Serial.println();
+  Serial.print("Connected with IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.println();
+
+  /* Assign the api key (required) */
+  config.api_key = API_KEY;
+
+  /* Assign the RTDB URL (required) */
+  config.database_url = DATABASE_URL;
+
+  /* Sign up */
+  if (Firebase.signUp(&config, &auth, "", "")){
+    Serial.println("ok");
+    signupOK = true;
+  }
+  else{
+    Serial.printf("%s\n", config.signer.signupError.message.c_str());
+  }
+
+  /* Assign the callback function for the long running token generation task */
+  config.token_status_callback = tokenStatusCallback; //see addons/TokenHelper.h
+  
+  Firebase.begin(&config, &auth);
+  Firebase.reconnectWiFi(true);
+}
+
+float generateRandomValue(float minVal, float maxVal) {
+  return random(minVal * 100, maxVal * 100) / 100.0;  // Scale the random value to two decimal places
+}void loop(){
+  //temperature and humidity measured should be stored in variables so the user
+  //can use it later in the database
+  unsigned long currentMillis = millis();
+
+  // Read sensor values every second
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
+    
+    // Generate random voltage and current values
+    voltage = generateRandomValue(200, 240);   // Range: 200V to 240V
+    current = generateRandomValue(0.5, 5.0);   // Range: 0.5A to 5.0A
+    // Calculate power in kilowatts (kW)
+    power = voltage * current / 1000.0;   // Power in kilowatts (kW)
+    // Calculate energy consumption in kilowatt-hours (kWh)
+    energy += power * (interval / 3600000.0);  // Energy in kilowatt-hours (kWh)
+    
+    if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 1000 || sendDataPrevMillis == 0)) {
+      //since we want the data to be updated every second
+      sendDataPrevMillis = millis();
+      
+      // Enter Voltage in the Smart_Meter table
+      if (Firebase.RTDB.setInt(&fbdo, "Smart_Meter/Voltage", voltage)) {
+        // This command will be executed even if you don't serial print, but we will make sure it's working
+        Serial.print("Voltage : ");
+        Serial.println(voltage);
+      } else {
+        Serial.println("Failed to write Voltage to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+      
+      // Enter Current in the Smart_Meter table
+      if (Firebase.RTDB.setFloat(&fbdo, "Smart_Meter/Current", current)) {
+        Serial.print("Current : ");
+        Serial.print(current);
+      } else {
+        Serial.println("Failed to write Current to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+      
+      // Enter Power in the Smart_Meter table
+      if (Firebase.RTDB.setInt(&fbdo, "Smart_Meter/Power", power)) {
+        Serial.print("Power : ");
+        Serial.println(power);
+      } else {
+        Serial.println("Failed to write Power to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+
+      // Enter Energy in the Smart_Meter table
+      if (Firebase.RTDB.setFloat(&fbdo, "Smart_Meter/Energy", energy)) {
+        Serial.print("Energy : ");
+        Serial.print(energy);
+      } else {
+        Serial.println("Failed to write Energy to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+    }
+  }
+}

@@ -1,0 +1,47 @@
+#include <WiFi.h>
+
+const char* ssid = "your_network_name";
+const char* password = "your_network_password";
+const char* serverIP = "server_ip_address";
+
+const int ledPin = 13; // Pin connected to the LED
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(ledPin, OUTPUT); // Set the LED pin as output
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+
+  Serial.println("Connected to WiFi");
+}
+
+void loop() {
+  WiFiClient client;
+
+  if (client.connect(serverIP, 80)) {
+    Serial.println("Connected to server");
+
+    while (client.connected()) {
+      while (client.available()) {
+        String command = client.readStringUntil('\r');
+        Serial.println(command);
+
+        if (command == "LED_ON") {
+          digitalWrite(ledPin, HIGH); // Turn on the LED
+          Serial.println("LED turned ON");
+        } else if (command == "LED_OFF") {
+          digitalWrite(ledPin, LOW); // Turn off the LED
+          Serial.println("LED turned OFF");
+        }
+      }
+    }
+
+    Serial.println("Connection lost");
+  }
+
+  delay(1000);
+}

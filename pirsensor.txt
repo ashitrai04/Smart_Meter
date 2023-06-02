@@ -1,0 +1,57 @@
+// PIR sensor pin
+const int pirPin = 27;
+
+// Switch pin
+const int switchPin = 2;
+
+// LED pin
+const int ledPin = 4;
+
+bool switchOn = false;
+bool switchPressed = false;
+
+void setup() {
+  // Initialize the PIR sensor pin as an input
+  pinMode(pirPin, INPUT);
+
+  // Initialize the switch pin as an input with internal pull-up resistor enabled
+  pinMode(switchPin, INPUT_PULLUP);
+
+  // Initialize the LED pin as an output
+  pinMode(ledPin, OUTPUT);
+
+  // Start serial communication
+  Serial.begin(9600);
+}
+
+void loop() {
+  // Read the state of the PIR sensor
+  int pirState = digitalRead(pirPin);
+
+  // Read the state of the switch
+  int switchState = digitalRead(switchPin);
+
+  // Check if the switch has been pressed
+  if (switchState == HIGH && !switchPressed) {
+    switchOn = !switchOn;
+    switchPressed = true;
+
+    if (switchOn) {
+      Serial.println("Switch turned ON!");
+    } else {
+      Serial.println("Switch turned OFF!");
+    }
+  } else if (switchState == LOW) {
+    switchPressed = false;
+  }
+
+  // If the switch is on and motion is detected by the PIR sensor, turn on the LED
+  if (switchOn && pirState == HIGH) {
+    digitalWrite(ledPin, HIGH);
+    Serial.println("Motion detected! LED ON");
+  } else {
+    digitalWrite(ledPin, LOW);
+  }
+
+  delay(100); // Adjust the delay as per your needs
+}

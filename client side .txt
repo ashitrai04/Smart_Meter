@@ -1,0 +1,106 @@
+#include <WiFi.h>
+
+const char* ssid = "iPhone";
+const char* password = "ashit@123";
+const int serverPort = 80;
+const String roomID = "room1"; // Change this according to the room ID
+
+WiFiClient client;
+IPAddress serverIP(172, 20, 10, 3); // Change this to the IP address of the server
+
+// Global variables to store sensor data
+float voltage1 ;
+float current1 ;
+float power1 ;
+static float energy1 = 0.0;
+
+unsigned long interval = 1000;  // Read sensor values every second
+unsigned long previousMillis = 0;
+
+void setup() {
+  Serial.begin(115200);
+
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+
+  Serial.print("Client IP address: ");
+  Serial.println(WiFi.localIP());
+
+  connectToServer();
+}
+
+void loop() {
+   unsigned long currentMillis = millis();
+
+  // Read sensor values every second
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
+
+    // Generate random values for the variables
+    voltage1 = generateRandomValue(200, 240);   // Range: 200V to 240V
+    current1 = generateRandomValue(0.5, 5.0);   // Range: 0.5A to 5.0A
+    power1 = voltage1 * current1 / 1000.0;      // Power in kilowatts (kW)
+    energy1 += power1 * (interval / 3600000.0); // Energy in kilowatt-hours (kWh)
+
+    // Print the data to the serial monitor
+    Serial.println("Voltage1: " + String(voltage1) + " V");
+    Serial.println("Current1: " + String(current1) + " A");
+    Serial.println("Power1: " + String(power1) + " kW");
+    Serial.println("Energy1: " + String(energy1) + " kWh");
+    Serial.println();
+  }
+
+  // Keep the loop running while the client is connected
+  while (client.connected()) {
+    // Send the data to the server
+    String data = "Voltage1: " + String(voltage1) + " V\n";
+    data += "Current1: " + String(current1) + " A\n";
+    data += "Power1: " + String(power1) + " kW\n";
+    data += "Energy1: " + String(energy1) + " kWh\n";
+
+    if (client.connected()) {
+      client.println(data);
+      Serial.println("Data sent to server");
+    }
+
+    // Check if the server has sent any response
+    if (client.available()) {
+      String response = client.readStringUntil('\r');
+      Serial.print("Response from server: ");
+      Serial.println(response);
+
+      // Check if the response is "turnon led"
+      if (response == "turnon led") {
+        // Turn on the LED
+        Serial.println("Turning on the LED");
+        digitalWrite(LED_BUILTIN, HIGH);
+      }
+    }
+
+    delay(3000); // Adjust the delay as per your requirement
+  }
+
+  // If the client is disconnected, attempt to reconnect
+  connectToServer();
+}
+
+float generateRandomValue(float minVal, float maxVal) {
+  return random(minVal * 100, maxVal * 100) / 100.0;  // Scale the random value to two decimal places
+}
+
+void connectToServer() {
+  if (client.connect(serverIP, serverPort)) {
+    Serial.println("Connected to server");
+
+    // Send the client ID (roomID) to the server
+    client.println(roomID);
+    Serial.print("Client ID: ");
+    Serial.println(roomID);
+  } else {
+    Serial.println("Connection to server failed");
+  }
+}
