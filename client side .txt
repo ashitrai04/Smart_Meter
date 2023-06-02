@@ -1,5 +1,4 @@
 #include <WiFi.h>
-
 const char* ssid = "iPhone";
 const char* password = "ashit@123";
 const int serverPort = 80;
