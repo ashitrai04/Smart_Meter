@@ -1,0 +1,799 @@
+// firebase
+#include <WiFi.h>
+#include <SPI.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+// telegram-bot
+#include <WiFiClientSecure.h>
+#include <UniversalTelegramBot.h>
+#include <ArduinoJson.h>
+// Include the time library
+#include <time.h>
+
+// Initialize Telegram BOT
+#define BOTtoken "5997673722:AAErsn-Fm_WR-9VOaacI6QKfMspenWRCFqc" // replace this with your bot token
+#define CHAT_ID "1335005769"                                      // replace with your telegram user ID
+WiFiClientSecure client;
+UniversalTelegramBot bot(BOTtoken, client);
+// Checks for new messages every 1 second.
+int bot_delay = 1000;
+unsigned long lastTimeBotRan;
+const int botPin = 2;
+bool ledState = LOW;
+
+// firebase--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#define OLED_RESET -1
+#define OLED_ADDR 0x3C
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+#include <Arduino.h>
+#include <Firebase_ESP_Client.h>
+#include "addons/TokenHelper.h"
+#include "addons/RTDBHelper.h"
+#define WIFI_SSID "STORM"
+#define WIFI_PASSWORD "9613087412"
+#define API_KEY "AIzaSyA6Td_AAJTGUMFG14gQqq8YSliFuuB3Yvc"
+#define DATABASE_URL "https://limit-alert-default-rtdb.firebaseio.com/"
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
+// Interval in milliseconds
+unsigned long sendDataPrevMillis = 0;
+int count = 0;
+bool signupOK = false;
+WiFiServer server(80);
+const int ledPin = 13; // LED pin
+float voltage1;
+float current1;
+float power1;
+float energy1;
+
+float voltage2;
+float current2;
+float power2;
+float energy2;
+
+float voltage3;
+float current3;
+float power3;
+float energy3;
+float totalpower = power1 + power2 + power3;
+float totalenergy = energy1 + energy2 + energy3;
+
+float room1Limit = 0.0; // Energy limit for Room 01
+float room2Limit = 0.0; // Energy limit for Room 02
+float room3Limit = 0.0; // Energy limit for Room 03
+float room4Limit = 0.0; // Energy limit for Room 04
+float totalLimit = 0.0; // Overall energy limit
+
+// Array of quotes
+String quotes[] = {
+    "Save electricity today, for a brighter tomorrow. 💡🌍",
+    "Every watt saved is a step towards a sustainable future. ⚡🌱",
+    "Conserve electricity, empower the planet. 🌍💪",
+    "Be wise, energize! Save electricity, save money. 💰💡",
+    "Switch off, power up! Save electricity and make a difference. ⚡🌍",
+    "Small changes, big impact. Save electricity, save the planet. 🌍💡",
+    "Choose to save electricity and embrace a greener lifestyle. 🌱💡",
+    "Save electricity, save resources, save the world. 🌍💡💪",
+    "Energy conservation starts with you. Save electricity, save the future. 💡🌍🌱",
+    "Make electricity conservation a habit and contribute to a sustainable world. 🌍💡🌱",
+    "💡 विद्युत् संवर्धन करो, ऊर्जा को बचाओ। ⚡️",
+    "🕯️ दीपक बचाओ, बिजली की व्यर्था को रोको। ⚡️",
+    "🔋 ऊर्जा की आपूर्ति छोटी है, खपत घटाओ और संवर्धन करो। ⚡️",
+    "💡 बिजली की बचत करें, भविष्य की सुरक्षा करें। ⚡️",
+    "💡 आओ विद्युत् की संरक्षा करें, हर एक बिजली की कण को महत्व दें। ⚡️",
+    "💡 विद्युत् की बचत धर्म है, इसे पालन करो और आपदा से बचाओ। ⚡️",
+    "💪💡 विद्युत् संवर्धन से होगा देश का विकास, हम सबको मिलकर करना है प्रयास। ⚡️",
+    "💡 बिजली की छोड़ो व्यर्थ खपत, सुरक्षित रखो आने वाली पीढ़ी के लिए ऊर्जा बचात। ⚡️",
+    "💡 विद्युत् की जरूरत के अनुसार ही खपत करो, धरती की संतानों का हो ध्यान विशेष रखो। ⚡️",
+    "💡 बिजली संरक्षण ही हमारा सर्वोपरि कर्तव्य है, अब समय आया है इसे पूरा करने का। ⚡️",
+};
+
+int numQuotes = sizeof(quotes) / sizeof(quotes[0]);
+
+int currentHour;   // Global variable for current hour
+int currentMinute; // Global variable for current minute
+
+// Set the time zone offset in seconds
+const long timeZoneOffset = 5 * 3600 + 30 * 60; // Change this according to your time zone (e.g., GMT+05:30)
+
+void sendMessageToBot(const String &message)
+{
+    bot.sendMessage(CHAT_ID, message, "");
+}
+
+void printCurrentTime(const struct tm &timeinfo)
+{
+    char timeString[20];
+    strftime(timeString, sizeof(timeString), "%Y-%m-%d %H:%M:%S", &timeinfo);
+    Serial.print("Current time: ");
+    Serial.println(timeString);
+}
+
+void handleNewMessages(int numNewMessages)
+{
+    Serial.println("Handling New Message");
+    Serial.println(String(numNewMessages));
+
+    for (int i = 0; i < numNewMessages; i++)
+    {
+        // Chat id of the requester
+        String chat_id = String(bot.messages[i].chat_id);
+        if (chat_id != CHAT_ID)
+        {
+            bot.sendMessage(chat_id, "Unauthorized user", "");
+            continue;
+        }
+
+        // Print the received message
+        String user_text = bot.messages[i].text;
+        Serial.println(user_text);
+
+        String your_name = bot.messages[i].from_name;
+
+        if (user_text == "/start")
+        {
+            String welcome = "Hey, " + your_name + " Welcome😄, Nice to see you again.\n\n";
+            welcome += "Please select your option ⚡️⚡️⚡️ : \n\n";
+            welcome += "Send /main_meter to get the Main Meter reading📟 \n";
+            welcome += "Send /room_01 get the info of Room 01🏠 \n";
+            welcome += "Send /room_02 get the info of Room 02🏠 \n";
+            welcome += "Send /room_03 get the info of Room 03🏠 \n\n";
+            welcome += "Send /set_limit to set the Usages Limit \n";
+            bot.sendMessage(chat_id, welcome, "");
+        }
+
+        if (user_text == "/main_meter")
+        {
+            String welcome = "Hey, these are the informations of the Main Meter you asked for : \n\n";
+            welcome += "Voltage : " + String(voltage1) + " V \n";
+            welcome += "Current : " + String(current1) + " A \n";
+            welcome += "Total Power: " + String(totalpower) + " kW \n";
+            welcome += "Total Energy: " + String(totalenergy) + " kWh \n";
+            bot.sendMessage(chat_id, welcome, "");
+        }
+
+        if (user_text == "/room_01")
+        {
+            String welcome = "Hey, these are the informations of Room 01 you asked for : \n\n";
+            welcome += "Voltage : " + String(voltage1) + " V \n";
+            welcome += "Current : " + String(current1) + " A \n";
+            welcome += "Power : " + String(power1) + " kW \n";
+            welcome += "Energy : " + String(energy1) + " kWh \n";
+            bot.sendMessage(chat_id, welcome, "");
+        }
+
+        if (user_text == "/room_02")
+        {
+            String welcome = "Hey, these are the informations of Room 02 you asked for : \n\n";
+            welcome += "Voltage : " + String(voltage2) + " V \n";
+            welcome += "Current : " + String(current2) + " A \n";
+            welcome += "Power : " + String(power2) + " kW \n";
+            welcome += "Energy : " + String(energy2) + " kWh \n";
+            bot.sendMessage(chat_id, welcome, "");
+        }
+
+        if (user_text == "/room_03")
+        {
+            String welcome = "Hey, these are the informations of Room 03 you asked for : \n\n";
+            welcome += "Voltage : " + String(voltage3) + " V \n";
+            welcome += "Current : " + String(current3) + " A \n";
+            welcome += "Power : " + String(power3) + " kW \n";
+            welcome += "Energy : " + String(energy3) + " kWh \n";
+            bot.sendMessage(chat_id, welcome, "");
+        }
+
+        else if (user_text == "/set_limit")
+        {
+            // Create a custom keyboard with the room and total limit options
+            String keyboard = "[[\"/room_01\"], [\"/room_02\"], [\"/room_03\"], [\"/room_04\"], [\"/total_limit\"]]";
+            // Set the reply markup keyboard
+            bot.sendMessageWithReplyKeyboard(chat_id, "Choose an option:", "", keyboard);
+        }
+        else if (user_text == "/room_01")
+        {
+            bot.sendMessage(chat_id, "Enter the energy limit for Room 01 (in kWh):", "");
+        }
+        else if (user_text == "/room_02")
+        {
+            bot.sendMessage(chat_id, "Enter the energy limit for Room 02 (in kWh):", "");
+        }
+        else if (user_text == "/room_03")
+        {
+            bot.sendMessage(chat_id, "Enter the energy limit for Room 03 (in kWh):", "");
+        }
+        else if (user_text == "/room_04")
+        {
+            bot.sendMessage(chat_id, "Enter the energy limit for Room 04 (in kWh):", "");
+        }
+        else if (user_text == "/total_limit")
+        {
+            bot.sendMessage(chat_id, "Enter the overall energy limit (in kWh):", "");
+        }
+        else
+        {
+            // Handle energy limit input
+            if (user_text.startsWith("/room_01 "))
+            {
+                // Extract the limit value for Room 01 from the user's message
+                String limitString = user_text.substring(user_text.indexOf(" ") + 1);
+                // Parse the limit value to a float
+                float newLimit = limitString.toFloat();
+                // Update the energy limit variable for Room 01
+                room1Limit = newLimit;
+                // Send a confirmation message to the Telegram bot
+                String confirmationMsg = "Energy limit for Room 01 set to: " + String(room1Limit) + " kWh";
+                bot.sendMessage(chat_id, confirmationMsg, "");
+            }
+            else if (user_text.startsWith("/room_02 "))
+            {
+                // Extract the limit value for Room 02 from the user's message
+                String limitString = user_text.substring(user_text.indexOf(" ") + 1);
+                // Parse the limit value to a float
+                float newLimit = limitString.toFloat();
+                // Update the energy limit variable for Room 02
+                room2Limit = newLimit;
+                // Send a confirmation message to the Telegram bot
+                String confirmationMsg = "Energy limit for Room 02 set to: " + String(room2Limit) + " kWh";
+                bot.sendMessage(chat_id, confirmationMsg, "");
+            }
+            else if (user_text.startsWith("/room_03 "))
+            {
+                // Extract the limit value for Room 03 from the user's message
+                String limitString = user_text.substring(user_text.indexOf(" ") + 1);
+                // Parse the limit value to a float
+                float newLimit = limitString.toFloat();
+                // Update the energy limit variable for Room 03
+                room3Limit = newLimit;
+                // Send a confirmation message to the Telegram bot
+                String confirmationMsg = "Energy limit for Room 03 set to: " + String(room3Limit) + " kWh";
+                bot.sendMessage(chat_id, confirmationMsg, "");
+            }
+            else if (user_text.startsWith("/room_04 "))
+            {
+                // Extract the limit value for Room 04 from the user's message
+                String limitString = user_text.substring(user_text.indexOf(" ") + 1);
+                // Parse the limit value to a float
+                float newLimit = limitString.toFloat();
+                // Update the energy limit variable for Room 04
+                room4Limit = newLimit;
+                // Send a confirmation message to the Telegram bot
+                String confirmationMsg = "Energy limit for Room 04 set to: " + String(room4Limit) + " kWh";
+                bot.sendMessage(chat_id, confirmationMsg, "");
+            }
+            else if (user_text.startsWith("/total_limit "))
+            {
+                // Extract the overall limit value from the user's message
+                String limitString = user_text.substring(user_text.indexOf(" ") + 1);
+                // Parse the limit value to a float
+                float newLimit = limitString.toFloat();
+                // Update the overall energy limit variable
+                totalLimit = newLimit;
+                // Send a confirmation message to the Telegram bot
+                String confirmationMsg = "Overall energy limit set to: " + String(totalLimit) + " kWh";
+                bot.sendMessage(chat_id, confirmationMsg, "");
+            }
+        }
+    }
+}
+
+void setup()
+{
+    Serial.begin(115200);
+    randomSeed(analogRead(0));
+
+    // Firebase setup
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+    Serial.print("Connecting to Wi-Fi");
+    while (WiFi.status() != WL_CONNECTED)
+    {
+        Serial.print(".");
+        delay(300);
+    }
+    Serial.println();
+    Serial.print("Connected with IP: ");
+    Serial.println(WiFi.localIP());
+    Serial.println();
+    server.begin();
+    display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
+    display.clearDisplay();
+    display.setTextColor(WHITE);
+    config.api_key = API_KEY;
+    config.database_url = DATABASE_URL;
+
+    if (Firebase.signUp(&config, &auth, "", ""))
+    {
+        Serial.println("ok");
+        signupOK = true;
+    }
+    else
+    {
+        Serial.printf("%s\n", config.signer.signupError.message.c_str());
+    }
+
+    config.token_status_callback = tokenStatusCallback; // see addons/TokenHelper.h
+    Firebase.begin(&config, &auth);
+    Firebase.reconnectWiFi(true);
+
+    // Chatbot setup
+    pinMode(botPin, OUTPUT);
+    digitalWrite(botPin, ledState);
+
+#ifdef ESP32
+    client.setCACert(TELEGRAM_CERTIFICATE_ROOT); // Add root certificate for api.telegram.org
+#endif
+
+    while (WiFi.status() != WL_CONNECTED)
+    {
+        delay(1000);
+        Serial.println("Connecting to WiFi..");
+    }
+    // Print ESP32 Local IP Address
+    Serial.println(WiFi.localIP());
+
+    // Set the current time using an NTP server
+    configTime(timeZoneOffset, 0, "pool.ntp.org");
+}
+
+void loop()
+{
+    // Get the current time
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo))
+    {
+        Serial.println("Failed to obtain time");
+        return;
+    }
+
+    // Store the current time in global variables
+    currentHour = timeinfo.tm_hour;
+    currentMinute = timeinfo.tm_min;
+
+    // Print the current time in the Serial Monitor
+    // printCurrentTime(timeinfo);
+
+    // auomatic info sending at the end of the day:
+    if (currentHour == 1 && currentMinute == 14)
+    {
+        // Construct the message with main meter information
+        String message = "Today's Main Meter Reading till now!!! \n\n";
+        message += "Voltage: " + String(voltage1) + " V\n";
+        message += "Current: " + String(current1) + " A\n";
+        message += "Total Power: " + String(totalpower) + " kW\n";
+        message += "Total Energy: " + String(totalenergy) + " kWh\n";
+        // Send the message to the Telegram bot
+        sendMessageToBot(message);
+
+        // Delay for a minute to avoid sending multiple messages
+        delay(60000);
+    }
+
+    // Check if it's 9 AM for morning quote
+    if (currentHour == 9 && currentMinute == 0)
+    {
+        // Get a random quote
+        int randomIndex = random(numQuotes);
+        String randomQuote = quotes[randomIndex];
+
+        // Send the random quote to the Telegram bot
+        sendMessageToBot(randomQuote);
+
+        // Wait for a minute to avoid sending multiple messages
+        delay(60000);
+    }
+
+    // Wait for the next iteration
+    delay(1000); // Delay for 1 sec
+
+    // Firebase loop section
+    if (WiFi.status() == WL_CONNECTED)
+    {
+        clientdata();
+        sendfirebase();
+    }
+    else
+    {
+        // WiFi is not connected or lost connection
+        Serial.println("WiFi not available!");
+        // Your code logic when WiFi is not available goes here
+    }
+
+    // Telegram bot loop section
+    if (millis() > lastTimeBotRan + bot_delay)
+    {
+        int numNewMessages = bot.getUpdates(bot.last_message_received + 1);
+
+        while (numNewMessages)
+        {
+            Serial.println("Got Response!");
+            handleNewMessages(numNewMessages);
+            numNewMessages = bot.getUpdates(bot.last_message_received + 1);
+        }
+        lastTimeBotRan = millis();
+    }
+    // Check if the energy usage exceeds the limits
+    if (room1Limit > 0 && energy1 > room1Limit)
+    {
+        sendMessageToBot("Energy usage in Room 01 has exceeded the limit!");
+    }
+
+    // Check if the energy usage exceeds the limits
+    if (room2Limit > 0 && energy2 > room2Limit)
+    {
+        sendMessageToBot("Energy usage in Room 01 has exceeded the limit!");
+    }
+
+    // Check if the energy usage exceeds the limits
+    if (room3Limit > 0 && energy3 > room3Limit)
+    {
+        sendMessageToBot("Energy usage in Room 01 has exceeded the limit!");
+    }
+
+    // Check if the energy usage exceeds the limits
+    if (totalLimit > 0 && totalenergy > totalLimit)
+    {
+        sendMessageToBot("Energy usage in Room 01 has exceeded the limit!");
+    }
+
+    delay(1000); // Wait for 1 second before checking again
+}
+
+void clientdata()
+{
+    if (server.hasClient())
+    {
+        WiFiClient newClient = server.available();
+        String clientID = newClient.readStringUntil('\r');
+        String roomID = clientID.substring(0, clientID.indexOf('_')); // Extract room ID from client ID
+        int roomIndex = findRoomIndex(roomID);
+
+        if (roomIndex != -1)
+        {
+            Serial.print("New client connected: ");
+            Serial.println(clientID);
+
+            // Store the received variables in the respective variables
+            storeVariables(newClient.readStringUntil('\r'), roomIndex);
+        }
+    }
+
+    Serial.print(room1Limit);
+
+    /*
+    Serial.println("Voltage1: " + String(voltage1) + " V");
+    Serial.println("Current1: " + String(current1) + " A");
+    Serial.println("Power1: " + String(power1) + " kW");
+    Serial.println("Energy1: " + String(energy1) + " kWh");
+
+    // Print the values of voltage2, current2, power2, and energy2
+    Serial.println("Voltage2: " + String(voltage2) + " V");
+    Serial.println("Current2: " + String(current2) + " A");
+    Serial.println("Power2: " + String(power2) + " kW");
+    Serial.println("Energy2: " + String(energy2) + " kWh");
+
+    // Print the values of voltage3, current3, power3, and energy3
+    Serial.println("Voltage3: " + String(voltage3) + " V");
+    Serial.println("Current3: " + String(current3) + " A");
+    Serial.println("Power3: " + String(power3) + " kW");
+    Serial.println("Energy3: " + String(energy3) + " kWh");
+    */
+
+    display.clearDisplay();
+    display.setTextSize(2); // Increase the text size
+    display.setTextColor(WHITE);
+    display.println("Power: " + String(totalpower) + " kW");
+    display.println("Energy: " + String(totalenergy) + " kWh");
+    display.display();
+    // Check if the received data contains the request to turn on/off the LED
+    if (Serial.available())
+    {
+        String request = Serial.readStringUntil('\n');
+        if (request.indexOf("turnon led") != -1)
+        {
+            digitalWrite(ledPin, HIGH); // Turn on the LED
+            Serial.println("LED turned on");
+        }
+        else if (request.indexOf("turnoff led") != -1)
+        {
+            digitalWrite(ledPin, LOW); // Turn off the LED
+            Serial.println("LED turned off");
+        }
+    }
+
+    // Clear the input buffer
+    while (Serial.available())
+    {
+        Serial.read();
+    }
+
+    delay(5000); // Print values every 5 seconds
+}
+void storeVariables(String data, int roomIndex)
+{
+    // Parse the received data and store the variables
+    int startPos = data.indexOf("Voltage1: ") + 10;
+    int endPos = data.indexOf(" V");
+    voltage1 = data.substring(startPos, endPos).toFloat();
+
+    startPos = data.indexOf("Current1: ") + 10;
+    endPos = data.indexOf(" A");
+    current1 = data.substring(startPos, endPos).toFloat();
+
+    startPos = data.indexOf("Power1: ") + 8;
+    endPos = data.indexOf(" kW");
+    power1 = data.substring(startPos, endPos).toFloat();
+
+    startPos = data.indexOf("Energy1: ") + 9;
+    endPos = data.indexOf(" kWh");
+    energy1 = data.substring(startPos, endPos).toFloat();
+
+    startPos = data.indexOf("Voltage2: ") + 10;
+    endPos = data.indexOf(" V", startPos);
+    voltage2 = data.substring(startPos, endPos).toFloat();
+
+    startPos = data.indexOf("Current2: ") + 10;
+    endPos = data.indexOf(" A", startPos);
+    current2 = data.substring(startPos, endPos).toFloat();
+
+    startPos = data.indexOf("Power2: ") + 8;
+    endPos = data.indexOf(" kW", startPos);
+    power2 = data.substring(startPos, endPos).toFloat();
+
+    startPos = data.indexOf("Energy2: ") + 9;
+    endPos = data.indexOf(" kWh", startPos);
+    energy2 = data.substring(startPos, endPos).toFloat();
+
+    startPos = data.indexOf("Voltage3: ") + 10;
+    endPos = data.indexOf(" V", startPos);
+    voltage3 = data.substring(startPos, endPos).toFloat();
+
+    startPos = data.indexOf("Current3: ") + 10;
+    endPos = data.indexOf(" A", startPos);
+    current3 = data.substring(startPos, endPos).toFloat();
+
+    startPos = data.indexOf("Power3: ") + 8;
+    endPos = data.indexOf(" kW", startPos);
+    power3 = data.substring(startPos, endPos).toFloat();
+
+    startPos = data.indexOf("Energy3: ") + 9;
+    endPos = data.indexOf(" kWh", startPos);
+    energy3 = data.substring(startPos, endPos).toFloat();
+}
+int findRoomIndex(String roomID)
+{
+    // Define the room IDs in an array
+    String roomIDs[] = {"room1", "room2", "room3"};
+
+    // Loop through the room IDs array and find the index of the matching room ID
+    for (int i = 0; i < sizeof(roomIDs) / sizeof(roomIDs[0]); i++)
+    {
+        if (roomIDs[i] == roomID)
+        {
+            return i;
+        }
+    }
+
+    return -1; // Return -1 if room ID not found
+}
+void sendfirebase()
+{
+    if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 1000 || sendDataPrevMillis == 0))
+    {
+        // since we want the data to be updated every second
+        sendDataPrevMillis = millis();
+        if (Firebase.RTDB.setInt(&fbdo, "voltage1", voltage1))
+        {
+            // This command will be executed even if you don't serial print, but we will make sure it's working
+            // Serial.print("Voltage : ");
+            // erial.println(voltage1);
+        }
+        else
+        {
+            Serial.println("Failed to write Voltage to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+        // Enter Current in the Smart_Meter table
+        if (Firebase.RTDB.setFloat(&fbdo, "current1", current1))
+        {
+            // Serial.print("Current : ");
+            // Serial.print(current1);
+        }
+        else
+        {
+            Serial.println("Failed to write Current to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+        // Enter Power in the Smart_Meter table
+        if (Firebase.RTDB.setInt(&fbdo, "power1", power1))
+        {
+            // Serial.print("Power : ");
+            // Serial.println(power1);
+        }
+        else
+        {
+            Serial.println("Failed to write Power to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+
+        // Enter Energy in the Smart_Meter table
+        if (Firebase.RTDB.setFloat(&fbdo, "energy1", energy1))
+        {
+            // Serial.print("Energy : ");
+            // Serial.print(energy1);
+        }
+        else
+        {
+            Serial.println("Failed to write Energy to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+        if (Firebase.RTDB.setInt(&fbdo, "voltage2", voltage2))
+        {
+            // This command will be executed even if you don't serial print, but we will make sure it's working
+            // Serial.print("Voltage : ");
+            // Serial.println(voltage1);
+        }
+        else
+        {
+            Serial.println("Failed to write Voltage to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+        // Enter Current in the Smart_Meter table
+        if (Firebase.RTDB.setFloat(&fbdo, "current2", current2))
+        {
+            // Serial.print("Current : ");
+            // Serial.print(current1);
+        }
+        else
+        {
+            Serial.println("Failed to write Current to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+        // Enter Power in the Smart_Meter table
+        if (Firebase.RTDB.setInt(&fbdo, "power2", power2))
+        {
+            // Serial.print("Power : ");
+            // Serial.println(power1);
+        }
+        else
+        {
+            Serial.println("Failed to write Power to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+
+        // Enter Energy in the Smart_Meter table
+        if (Firebase.RTDB.setFloat(&fbdo, "energy2", energy2))
+        {
+            // Serial.print("Energy : ");
+            // Serial.print(energy1);
+        }
+        else
+        {
+            Serial.println("Failed to write Energy to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+        if (Firebase.RTDB.setInt(&fbdo, " voltage3", voltage3))
+        {
+            // This command will be executed even if you don't serial print, but we will make sure it's working
+            // Serial.print("Voltage : ");
+            // Serial.println(voltage1);
+        }
+        else
+        {
+            Serial.println("Failed to write Voltage to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+        // Enter Current in the Smart_Meter table
+        if (Firebase.RTDB.setFloat(&fbdo, "current3", current3))
+        {
+            // Serial.print("Current : ");
+            // Serial.print(current1);
+        }
+        else
+        {
+            Serial.println("Failed to write Current to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+        // Enter Power in the Smart_Meter table
+        if (Firebase.RTDB.setInt(&fbdo, "power3", power3))
+        {
+            // Serial.print("Power : ");
+            // Serial.println(power1);
+        }
+        else
+        {
+            Serial.println("Failed to write Power to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+        // Enter Energy in the Smart_Meter table
+        if (Firebase.RTDB.setFloat(&fbdo, "energy3", energy3))
+        {
+            // Serial.print("Energy : ");
+            // Serial.print(energy1);
+        }
+        else
+        {
+            Serial.println("Failed to write Energy to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+        if (Firebase.RTDB.setInt(&fbdo, "totalpower", totalpower))
+        {
+            // Serial.print("Power : ");
+            // Serial.println(power1);
+        }
+        else
+        {
+            Serial.println("Failed to write Power to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+        // Enter Energy in the Smart_Meter table
+        if (Firebase.RTDB.setFloat(&fbdo, "totalenergy", totalenergy))
+        {
+            // Serial.print("Energy : ");
+            // Serial.print(energy1);
+        }
+        else
+        {
+            Serial.println("Failed to write Energy to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+
+        if (Firebase.RTDB.setFloat(&fbdo, "Room 01 Limit", room1Limit))
+        {
+            // Serial.print("Energy : ");
+            // Serial.print(energy1);
+        }
+        else
+        {
+            Serial.println("Failed to write Energy to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+
+        if (Firebase.RTDB.setFloat(&fbdo, "Room 02 Limit", room2Limit))
+        {
+            // Serial.print("Energy : ");
+            // Serial.print(energy1);
+        }
+        else
+        {
+            Serial.println("Failed to write Energy to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+        if (Firebase.RTDB.setFloat(&fbdo, "Room 03 Limit", room3Limit))
+        {
+            // Serial.print("Energy : ");
+            // Serial.print(energy1);
+        }
+        else
+        {
+            Serial.println("Failed to write Energy to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+        if (Firebase.RTDB.setFloat(&fbdo, "Room 04 Limit", room4Limit))
+        {
+            // Serial.print("Energy : ");
+            // Serial.print(energy1);
+        }
+        else
+        {
+            Serial.println("Failed to write Energy to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+        if (Firebase.RTDB.setFloat(&fbdo, "Overall Limit", totalLimit))
+        {
+            // Serial.print("Energy : ");
+            // Serial.print(energy1);
+        }
+        else
+        {
+            Serial.println("Failed to write Energy to the RTDB");
+            Serial.println("Reason: " + fbdo.errorReason());
+        }
+    }
+}
