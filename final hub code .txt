@@ -1,3 +1,16 @@
+#include <WiFi.h>
+#include <SPI.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#define OLED_RESET -1 
+#define OLED_ADDR 0x3C 
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
 #include <Arduino.h>
 #include <WiFi.h>              
 #include <Firebase_ESP_Client.h>
@@ -5,8 +18,8 @@
 #include "addons/RTDBHelper.h"
 #define WIFI_SSID "iPhone"
 #define WIFI_PASSWORD "ashit@123"
-#define API_KEY "AIzaSyCWEjA8SOYzqcCjypYfJnTQ7RYuXoyFHUM"
-#define DATABASE_URL "https://web-page-18d0d-default-rtdb.firebaseio.com/" 
+#define API_KEY "AIzaSyAcb2TpqFzKSksmF7AKcElfqndnxaiEJnU"
+#define DATABASE_URL "https://smart-meter-d7830-default-rtdb.firebaseio.com/" 
 FirebaseData fbdo;
 FirebaseAuth auth;
 FirebaseConfig config;
@@ -16,8 +29,6 @@ int count = 0;
 bool signupOK = false;  
 WiFiServer server(80);
 const int ledPin = 13; // LED pin
-
-
 float voltage1;
 float current1;
 float power1;
@@ -31,7 +42,10 @@ float energy2;
 float voltage3;
 float current3;
 float power3;
-float energy3;                   //since we are doing an anonymous sign in 
+float energy3; 
+float totalpower = power1 + power2 + power3 ;
+float totalenergy = energy1 + energy2 + energy3 ;  
+                  //since we are doing an anonymous sign in 
 void setup(){
 
   pinMode(ledPin, OUTPUT);
@@ -47,6 +61,9 @@ void setup(){
   Serial.println(WiFi.localIP());
   Serial.println();
   server.begin();
+  display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
+  display.clearDisplay();
+  display.setTextColor(WHITE);
   config.api_key = API_KEY;
   config.database_url = DATABASE_URL;
   if (Firebase.signUp(&config, &auth, "", "")){
@@ -110,6 +127,12 @@ void clientdata(){
   Serial.println("Power3: " + String(power3) + " kW");
   Serial.println("Energy3: " + String(energy3) + " kWh");
 
+   display.clearDisplay();
+    display.setTextSize(2); // Increase the text size
+    display.setTextColor(WHITE);
+    display.println("Power: " + String(totalpower) + " kW");
+    display.println("Energy: " + String(totalenergy) + " kWh");
+    display.display();
   // Check if the received data contains the request to turn on/off the LED
   if (Serial.available()) {
     String request = Serial.readStringUntil('\n');
@@ -196,7 +219,7 @@ void sendfirebase(){
     if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 1000 || sendDataPrevMillis == 0)) {
       //since we want the data to be updated every second
       sendDataPrevMillis = millis();
-      if (Firebase.RTDB.setInt(&fbdo, "Room_1/Voltage", voltage1)) {
+      if (Firebase.RTDB.setInt(&fbdo, "voltage1", voltage1)) {
         // This command will be executed even if you don't serial print, but we will make sure it's working
         Serial.print("Voltage : ");
         Serial.println(voltage1);
@@ -205,7 +228,7 @@ void sendfirebase(){
         Serial.println("Reason: " + fbdo.errorReason());
       }
       // Enter Current in the Smart_Meter table
-      if (Firebase.RTDB.setFloat(&fbdo, "Room_1/Current", current1)) {
+      if (Firebase.RTDB.setFloat(&fbdo, "current1", current1)) {
         Serial.print("Current : ");
         Serial.print(current1);
       } else {
@@ -213,7 +236,7 @@ void sendfirebase(){
         Serial.println("Reason: " + fbdo.errorReason());
       }
       // Enter Power in the Smart_Meter table
-      if (Firebase.RTDB.setInt(&fbdo, "Room_1/Power", power1)) {
+      if (Firebase.RTDB.setInt(&fbdo, "power1", power1)) {
         Serial.print("Power : ");
         Serial.println(power1);
       } else {
@@ -222,14 +245,14 @@ void sendfirebase(){
       }
 
       // Enter Energy in the Smart_Meter table
-      if (Firebase.RTDB.setFloat(&fbdo, "Room_1/Energy", energy1)) {
+      if (Firebase.RTDB.setFloat(&fbdo, "energy1", energy1)) {
         Serial.print("Energy : ");
         Serial.print(energy1);
       } else {
         Serial.println("Failed to write Energy to the RTDB");
         Serial.println("Reason: " + fbdo.errorReason());
       }
-       if (Firebase.RTDB.setInt(&fbdo, "Room_2/Voltage", voltage2)) {
+       if (Firebase.RTDB.setInt(&fbdo, "voltage2", voltage2)) {
         // This command will be executed even if you don't serial print, but we will make sure it's working
         Serial.print("Voltage : ");
         Serial.println(voltage1);
@@ -238,7 +261,7 @@ void sendfirebase(){
         Serial.println("Reason: " + fbdo.errorReason());
       }
       // Enter Current in the Smart_Meter table
-      if (Firebase.RTDB.setFloat(&fbdo, "Room_2/Current", current2)) {
+      if (Firebase.RTDB.setFloat(&fbdo, "current2", current2)) {
         Serial.print("Current : ");
         Serial.print(current1);
       } else {
@@ -246,7 +269,7 @@ void sendfirebase(){
         Serial.println("Reason: " + fbdo.errorReason());
       }
       // Enter Power in the Smart_Meter table
-      if (Firebase.RTDB.setInt(&fbdo, "Room_2/Power", power2)) {
+      if (Firebase.RTDB.setInt(&fbdo, "power2", power2)) {
         Serial.print("Power : ");
         Serial.println(power1);
       } else {
@@ -255,14 +278,14 @@ void sendfirebase(){
       }
 
       // Enter Energy in the Smart_Meter table
-      if (Firebase.RTDB.setFloat(&fbdo, "Room_2/Energy", energy2)) {
+      if (Firebase.RTDB.setFloat(&fbdo, "energy2", energy2)) {
         Serial.print("Energy : ");
         Serial.print(energy1);
       } else {
         Serial.println("Failed to write Energy to the RTDB");
         Serial.println("Reason: " + fbdo.errorReason());
       }
-       if (Firebase.RTDB.setInt(&fbdo, "Room_3/Voltage", voltage3)) {
+       if (Firebase.RTDB.setInt(&fbdo, " voltage3", voltage3)) {
         // This command will be executed even if you don't serial print, but we will make sure it's working
         Serial.print("Voltage : ");
         Serial.println(voltage1);
@@ -271,7 +294,7 @@ void sendfirebase(){
         Serial.println("Reason: " + fbdo.errorReason());
       }
       // Enter Current in the Smart_Meter table
-      if (Firebase.RTDB.setFloat(&fbdo, "Room_3/Current", current3)) {
+      if (Firebase.RTDB.setFloat(&fbdo, "current3", current3)) {
         Serial.print("Current : ");
         Serial.print(current1);
       } else {
@@ -279,16 +302,30 @@ void sendfirebase(){
         Serial.println("Reason: " + fbdo.errorReason());
       }
       // Enter Power in the Smart_Meter table
-      if (Firebase.RTDB.setInt(&fbdo, "Room_3/Power", power3)) {
+      if (Firebase.RTDB.setInt(&fbdo, "power3", power3)) {
         Serial.print("Power : ");
         Serial.println(power1);
       } else {
         Serial.println("Failed to write Power to the RTDB");
         Serial.println("Reason: " + fbdo.errorReason());
       }
-
       // Enter Energy in the Smart_Meter table
-      if (Firebase.RTDB.setFloat(&fbdo, "Room_3/Energy", energy3)) {
+      if (Firebase.RTDB.setFloat(&fbdo, "energy3", energy3)) {
+        Serial.print("Energy : ");
+        Serial.print(energy1);
+      } else {
+        Serial.println("Failed to write Energy to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+       if (Firebase.RTDB.setInt(&fbdo, "totalpower", totalpower)) {
+        Serial.print("Power : ");
+        Serial.println(power1);
+      } else {
+        Serial.println("Failed to write Power to the RTDB");
+        Serial.println("Reason: " + fbdo.errorReason());
+      }
+      // Enter Energy in the Smart_Meter table
+      if (Firebase.RTDB.setFloat(&fbdo, "totalenergy", totalenergy)) {
         Serial.print("Energy : ");
         Serial.print(energy1);
       } else {
