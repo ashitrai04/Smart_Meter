@@ -1,4 +1,9 @@
 #include <WiFi.h>
+#include <SPI.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
 const char* ssid = "iPhone";
 const char* password = "ashit@123";
 const int serverPort = 80;
@@ -8,13 +13,20 @@ WiFiClient client;
 IPAddress serverIP(172, 20, 10, 3); // Change this to the IP address of the server
 
 // Global variables to store sensor data
-float voltage1 ;
-float current1 ;
-float power1 ;
+float voltage1;
+float current1;
+float power1;
 static float energy1 = 0.0;
 
 unsigned long interval = 1000;  // Read sensor values every second
 unsigned long previousMillis = 0;
+
+#define OLED_RESET -1 
+#define OLED_ADDR 0x3C 
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 void setup() {
   Serial.begin(115200);
@@ -30,10 +42,14 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   connectToServer();
+
+  display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
+  display.clearDisplay();
+  display.setTextColor(WHITE);
 }
 
 void loop() {
-   unsigned long currentMillis = millis();
+  unsigned long currentMillis = millis();
 
   // Read sensor values every second
   if (currentMillis - previousMillis >= interval) {
@@ -51,6 +67,17 @@ void loop() {
     Serial.println("Power1: " + String(power1) + " kW");
     Serial.println("Energy1: " + String(energy1) + " kWh");
     Serial.println();
+
+    // Display the data on the OLED display
+    display.clearDisplay();
+    display.setTextSize(2); // Increase the text size
+    display.setTextColor(WHITE);
+    display.setCursor(0, 0);
+    display.println("Voltage1: " + String(voltage1) + " V");
+    display.println("Current1: " + String(current1) + " A");
+    display.println("Power1: " + String(power1) + " kW");
+    display.println("Energy1: " + String(energy1) + " kWh");
+    display.display();
   }
 
   // Keep the loop running while the client is connected
