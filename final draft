@@ -1,0 +1,22 @@
+import logging
+from telegram.ext import Updater, CommandHandler
+
+# Set up logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                     level=logging.INFO)
+
+# Define the welcome message function
+def start(update, context):
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Welcome to the bot!")
+
+# Set up the bot token and create an updater
+updater = Updater(token='5997673722:AAErsn-Fm_WR-9VOaacI6QKfMspenWRCFqc', use_context=True)
+
+# Get the dispatcher to register handlers
+dispatcher = updater.dispatcher
+
+# Register the start command handler
+dispatcher.add_handler(CommandHandler('start', start))
+
+# Start the bot
+updater.start_polling()
