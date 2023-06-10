@@ -1,21 +1,34 @@
 #include <WiFi.h>
 #include <FirebaseESP32.h>
 #include <ArduinoJson.h>
-#include <TimeLib.h>
-
+#include <time.h>
+const int LED = 2 ;
 // Replace with your network credentials
 const char* ssid = "iPhone";
 const char* password = "ashit@123";
 
 // Replace with your Firebase project credentials
-#define FIREBASE_HOST "timer-6df08-default-rtdb.firebaseio.com"
-#define FIREBASE_AUTH "KXK5N8ODdwkKdIyHZaSCILRJx1zFjikdH7clkINF"
+#define FIREBASE_HOST "smart-meter-d1dc8-default-rtdb.firebaseio.com"
+#define FIREBASE_AUTH "DQpZn4XseT4ciEzuKINSjMdbipVVKlWj2hPuP0gF"
 
 FirebaseData firebaseData;
 const String schedulePath = "/schedule";
+int currentHour;   // Global variable for current hour
+int currentMinute; // Global variable for current minute
 
+// Set the time zone offset in seconds
+const long timeZoneOffset = 5 * 3600 + 30 * 60; // Change this according to your time zone (e.g., GMT+05:30)
+
+void printCurrentTime(const struct tm &timeinfo)
+{
+    char timeString[20];
+    strftime(timeString, sizeof(timeString), "%Y-%m-%d %H:%M:%S", &timeinfo);
+    Serial.print("Current time: ");
+    Serial.println(timeString);
+}
 void setup() {
   Serial.begin(115200);
+  pinMode(LED, OUTPUT);
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
@@ -26,18 +39,29 @@ void setup() {
   Firebase.reconnectWiFi(true);
   
   // Set ESP32 time from an NTP server
-  configTime(0, 0, "pool.ntp.org");
-  while (!time(nullptr)) {
-    delay(1000);
-    Serial.println("Waiting for time synchronization...");
-  }
+    configTime(timeZoneOffset, 0, "pool.ntp.org");
 }
 
 void loop() {
-  // Get current time
-  time_t now = time(nullptr);
-  struct tm* timeinfo;
-  timeinfo = localtime(&now);
+   // Get the current time
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo))
+    {
+        Serial.println("Failed to obtain time");
+        return;
+    }
+
+    // Store the current time in global variables
+    currentHour = timeinfo.tm_hour;
+    currentMinute = timeinfo.tm_min;
+  
+  // Display current time
+  Serial.print("Current time: ");
+  Serial.print(timeinfo.tm_hour);
+  Serial.print(":");
+  Serial.print(timeinfo.tm_min);
+  Serial.print(":");
+  Serial.println(timeinfo.tm_sec);
   
   // Get scheduled start and end times from Firebase
   if (Firebase.getString(firebaseData, schedulePath)) {
@@ -63,16 +87,20 @@ void loop() {
     // Convert scheduled time to seconds since midnight
     time_t startTime = startHour * 3600 + startMinute * 60;
     time_t endTime = endHour * 3600 + endMinute * 60;
-    time_t currentTime = timeinfo->tm_hour * 3600 + timeinfo->tm_min * 60 + timeinfo->tm_sec;
+    time_t currentTime = timeinfo.tm_hour * 3600 + timeinfo.tm_min * 60 + timeinfo.tm_sec;
+    Serial.print("Current time (seconds since midnight): ");
+    Serial.println(currentTime);
     
     // Check if current time is within the scheduled range
     if (currentTime >= startTime && currentTime < endTime) {
       // Turn LED on
       Serial.println("LED ON");
+      digitalWrite(LED, HIGH);
       // Write your code here to control the LED (e.g., digitalWrite(LED_PIN, HIGH);)
     } else {
       // Turn LED off
       Serial.println("LED OFF");
+      digitalWrite(LED, LOW);
       // Write your code here to control the LED (e.g., digitalWrite(LED_PIN, LOW);)
     }
   }
