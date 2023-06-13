@@ -1,0 +1,301 @@
+#include <SPI.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <Arduino.h>
+#include <WiFi.h>
+#include <Firebase_ESP_Client.h>
+#include "addons/TokenHelper.h"
+#include "addons/RTDBHelper.h"
+#include <time.h>
+
+#define OLED_RESET -1 
+#define OLED_ADDR 0x3C 
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+float setlimit;
+const String limit = "/Room1";
+int currentHour;   // Global variable for current hour
+int currentMinute;
+int currentTime; // Global variable for current minute
+int startHour;
+int startMinute;
+int endHour;
+int endMinute;
+const long timeZoneOffset = 5 * 3600 + 30 * 60; // Change this according to your time zone (e.g., GMT+05:30)
+
+const int LED = 13;
+const int pirPin = 27; // PIR sensor pin
+const int switchPin = 4; // Switch pin
+const int ledPin = 5; // LED pin
+
+bool switchOn = false;
+int switchStatus = 0; // Switch status variable
+bool switchPressed = false;
+bool ledOn = false; // LED status variable
+
+// WiFi credentials
+#define WIFI_SSID "iPhone"
+#define WIFI_PASSWORD "ashit@123"
+
+// Firebase project credentials
+#define API_KEY "AIzaSyCWEjA8SOYzqcCjypYfJnTQ7RYuXoyFHUM"
+#define DATABASE_URL "https://smart-meter-8b653-default-rtdb.asia-southeast1.firebasedatabase.app/"
+
+// Firebase objects
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
+
+unsigned long sendDataPrevMillis = 0;
+int count = 0;
+bool signupOK = false;
+
+float voltage;
+float current;
+float power;
+static float energy = 0.0; // Static variable to store the energy consumption
+unsigned long previousMillis = 0;
+unsigned long interval = 1000; // Interval in milliseconds
+
+int pirState;
+void printCurrentTime(const struct tm &timeinfo)
+{
+  char timeString[20];
+  strftime(timeString, sizeof(timeString), "%Y-%m-%d %H:%M:%S", &timeinfo);
+  Serial.print("Current time: ");
+  Serial.println(timeString);
+}
+
+void setup()
+{
+  pinMode(LED, OUTPUT);
+  // Initialize the PIR sensor pin as an input
+  pinMode(pirPin, INPUT);
+  // Initialize the switch pin as an input with internal pull-up resistor enabled
+  pinMode(switchPin, INPUT_PULLUP);
+  // Initialize the LED pin as an output
+  pinMode(ledPin, OUTPUT);
+  // Start serial communication
+  Serial.begin(115200);
+  display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+  readings();
+  oledisplay();
+  // Connect to Wi-Fi
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.print(".");
+    delay(300);
+  }
+  Serial.println();
+  Serial.print("Connected with IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.println();
+  // Set ESP32 time from an NTP server
+  configTime(timeZoneOffset, 0, "pool.ntp.org");
+  // Configure Firebase credentials and sign up
+  config.api_key = API_KEY;
+  config.database_url = DATABASE_URL;
+  if (Firebase.signUp(&config, &auth, "", ""))
+  {
+    Serial.println("Sign up successful");
+    signupOK = true;
+  }
+  else
+  {
+    Serial.printf("%s\n", config.signer.signupError.message.c_str());
+  }
+  config.token_status_callback = tokenStatusCallback;
+
+  // Begin Firebase connection
+  Firebase.begin(&config, &auth);
+  Firebase.reconnectWiFi(true);
+}
+void loop() {
+  firebase();
+  pir();
+  schedule();
+  oledisplay();
+  readings();
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    return;
+  }
+
+  currentHour = timeinfo.tm_hour;
+  currentMinute = timeinfo.tm_min;
+  currentTime = timeinfo.tm_hour * 3600 + timeinfo.tm_min * 60 + timeinfo.tm_sec;
+}
+
+void pir() {
+  pirState = digitalRead(pirPin) == HIGH ? 1 : 0;
+
+  int switchState = digitalRead(switchPin);
+
+  if (switchState == HIGH && !switchPressed) {
+    switchOn = !switchOn;
+    switchPressed = true;
+
+    if (switchOn) {
+      switchStatus = 1;
+      if (Firebase.RTDB.setInt(&fbdo, "/switches/toggleSwitch3", switchStatus)) {}
+      else {}
+    }
+    else {
+      switchStatus = 0;
+      if (Firebase.RTDB.setInt(&fbdo, "/switches/toggleSwitch3", switchStatus)) {}
+      else {}
+    }
+  }
+  else if (switchState == LOW) {
+    switchPressed = false;
+  }
+
+  if (Firebase.RTDB.getInt(&fbdo, "/switches/toggleSwitch3")) {
+    if (fbdo.dataType() == "int") {
+      switchStatus = fbdo.intData();
+      switchOn = (switchStatus == 1);
+    }
+  }
+
+  if (switchOn && pirState == 1) {
+    digitalWrite(ledPin, HIGH);
+    ledOn = true;
+
+    if (Firebase.RTDB.setInt(&fbdo, "/ledStatus1", 1)) {}
+    else {}
+  }
+  else {
+    digitalWrite(ledPin, LOW);
+    ledOn = false;
+
+    if (Firebase.RTDB.setInt(&fbdo, "/ledStatus1", 0)) {}
+    else {}
+  }
+
+  delay(500);
+}
+void readings() {
+  unsigned long currentMillis = millis();
+
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
+
+    voltage = generateRandomValue(200, 240);
+    voltage = round(voltage * 100) / 100.0; // Limit voltage to two decimal places
+
+    current = generateRandomValue(0.5, 5.0);
+
+    power = voltage * current / 1000.0;
+    power = round(power * 100) / 100.0; // Limit power to two decimal places
+
+    energy += power * (interval / 3600000.0);
+    energy = round(energy * 100) / 100.0; // Limit energy to two decimal places
+  }
+}
+
+void schedule() {
+  if (Firebase.RTDB.getString(&fbdo, "/schedule/room1/startTime")) {
+    if (fbdo.dataType() == "string") {
+      String startTimeStr = fbdo.stringData();
+
+      // Extract hours and minutes from start time
+      int colonIndex = startTimeStr.indexOf(':');
+      String startHourStr = startTimeStr.substring(0, colonIndex);
+      String startMinuteStr = startTimeStr.substring(colonIndex + 1);
+
+      // Print the start time
+      Serial.print("Start Time: ");
+      Serial.print(startHourStr.toInt());
+      Serial.print(":");
+      Serial.println(startMinuteStr.toInt());
+
+      startHour = startHourStr.toInt();
+      startMinute = startMinuteStr.toInt();
+    }
+  }
+  else {
+    // Failed to read start time from Firebase
+  }
+
+  if (Firebase.RTDB.getString(&fbdo, "/schedule/room1/endTime")) {
+    if (fbdo.dataType() == "string") {
+      String endTimeStr = fbdo.stringData();
+
+      // Extract hours and minutes from end time
+      int colonIndex = endTimeStr.indexOf(':');
+      String endHourStr = endTimeStr.substring(0, colonIndex);
+      String endMinuteStr = endTimeStr.substring(colonIndex + 1);
+
+      // Print the end time
+      Serial.print("End Time: ");
+      Serial.print(endHourStr.toInt());
+      Serial.print(":");
+      Serial.println(endMinuteStr.toInt());
+
+      endHour = endHourStr.toInt();
+      endMinute = endMinuteStr.toInt();
+    }
+  }
+  else {
+    // Failed to read end time from Firebase
+  }
+
+  if (currentTime >= startHour * 3600 + startMinute * 60 && currentTime <= endHour * 3600 + endMinute * 60) {
+    digitalWrite(LED, HIGH);
+  }
+  else {
+    digitalWrite(LED, LOW);
+  }
+}
+
+void oledisplay()
+{
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setCursor(0, 0);
+  display.println("Hack2Skill");
+  display.setTextSize(1);
+  display.setCursor(0, 20);
+  display.print("Energy: ");
+  display.print(energy, 2);
+  display.println(" kWh");
+  display.setCursor(0, 35);
+  display.print("Power: ");
+  display.print(power, 2);
+  display.println(" W");
+  display.setCursor(0, 50);
+  display.print("Sensor Switch: ");
+  display.print(switchOn ? "ON" : "OFF");
+  display.display();
+}
+
+
+void firebase() {
+   unsigned long currentMillis = millis();
+
+  if (currentMillis - sendDataPrevMillis >= 10000)
+  {
+    sendDataPrevMillis = currentMillis;
+
+    // Send data to Firebase
+    Firebase.RTDB.setFloat(&fbdo, "/power1", power);
+    Firebase.RTDB.setFloat(&fbdo, "/voltage1", voltage);
+    Firebase.RTDB.setFloat(&fbdo, "/current1", current);
+    Firebase.RTDB.setFloat(&fbdo, "/energy1", energy);
+    Firebase.RTDB.setInt(&fbdo, "/switches/toggleSwitch3", switchStatus);
+    Firebase.RTDB.setInt(&fbdo, "/ledStatus1", ledOn ? 1 : 0);
+    Firebase.RTDB.setInt(&fbdo, "/pirStatus1", pirState);
+  }
+}
+
+
+float generateRandomValue(float minVal, float maxVal) {
+  return random(minVal * 100, maxVal * 100) / 100.0;
