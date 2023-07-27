@@ -299,3 +299,4 @@ void firebase() {
 
 float generateRandomValue(float minVal, float maxVal) {
   return random(minVal * 100, maxVal * 100) / 100.0;
+}
