@@ -1,141 +1,47 @@
-import firebase_admin
-from firebase_admin import credentials, db
-import requests
-import time
-import random
+!pip install firebase
+!pip install firebase_admin
+!pip install telebot
+!pip install --upgrade pyTelegramBotAPI
+!pip install telegram
+!pip install python-telegram-bot
+!pip install --upgrade python-telegram-bot
 
+import firebase_admin
+from firebase_admin import db, credentials
 
 # authenticate to firebase
-cred = credentials.Certificate("credentials.json")
-firebase_admin.initialize_app(cred, {"databaseURL": "https://ipsa-a67be-default-rtdb.firebaseio.com/"})
+cred = credentials.Certificate("/content/credentials.json")
+firebase_admin.initialize_app(cred, {"databaseURL": "https://limit-alert-default-rtdb.firebaseio.com"})
+
+totalenergy_ref = db.reference("/totalenergy")
+totalenergy = totalenergy_ref.get()
 
 
-# creating reference to root node
-ref = db.reference("/")
+import telebot
 
+bot = telebot.TeleBot("6275294691:AAGvFHqiBOlf_PyTfzsgkXkpgR8NlS-QElk")
 
-quotes = [
-    "Save electricity today, for a brighter tomorrow. 💡🌍",
-    "Every watt saved is a step towards a sustainable future. ⚡🌱",
-    "Conserve electricity, empower the planet. 🌍💪",
-    "Be wise, energize! Save electricity, save money. 💰💡",
-    "Switch off, power up! Save electricity and make a difference. ⚡🌍",
-    "Small changes, big impact. Save electricity, save the planet. 🌍💡",
-    "Choose to save electricity and embrace a greener lifestyle. 🌱💡",
-    "Save electricity, save resources, save the world. 🌍💡💪",
-    "Energy conservation starts with you. Save electricity, save the future. 💡🌍🌱",
-    "Make electricity conservation a habit and contribute to a sustainable world. 🌍💡🌱",
-    "💡 विद्युत् संवर्धन करो, ऊर्जा को बचाओ। ⚡️",
-    "🕯️ दीपक बचाओ, बिजली की व्यर्था को रोको। ⚡️",
-    "🔋 ऊर्जा की आपूर्ति छोटी है, खपत घटाओ और संवर्धन करो। ⚡️",
-    "💡 बिजली की बचत करें, भविष्य की सुरक्षा करें। ⚡️",
-    "💡 आओ विद्युत् की संरक्षा करें, हर एक बिजली की कण को महत्व दें। ⚡️",
-    "💡 विद्युत् की बचत धर्म है, इसे पालन करो और आपदा से बचाओ। ⚡️",
-    "💪💡 विद्युत् संवर्धन से होगा देश का विकास, हम सबको मिलकर करना है प्रयास। ⚡️",
-    "💡 बिजली की छोड़ो व्यर्थ खपत, सुरक्षित रखो आने वाली पीढ़ी के लिए ऊर्जा बचात। ⚡️",
-    "💡 विद्युत् की जरूरत के अनुसार ही खपत करो, धरती की संतानों का हो ध्यान विशेष रखो। ⚡️",
-    "💡 बिजली संरक्षण ही हमारा सर्वोपरि कर्तव्य है, अब समय आया है इसे पूरा करने का। ⚡️",
-    ]
+@bot.message_handler(commands=["start"])
+def start(message):
 
+  bot.send_message(message.chat.id, """
+  Welcome to my bot! I can help you track your energy usage.
 
-def MesageLimit():
-    data = ref.get()  # Retrieve data from Firebase
-    while True:
-        # update operation (update existing value)
-        db.reference("/").update({"Energy1":data["Energy1"]+5 })
-        db.reference("/").update({"Energy2":data["Energy2"]+5 })
-        db.reference("/").update({"Hub":data["Hub"]+10 })
-        if(data["Energy1"] == Limit1-10):
-                base_url = 'https://api.telegram.org/bot5690779760:AAGawGPDoh3EkV2Onqd0T9AowOOkdYhRAuQ/sendMessage?chat_id=1021853106&text="{}{}"'.format(data,"You are reaching your consuption limit for Room1")
-                requests.get(base_url)
-        if(data["Energy1"] == Limit1):
-                base_url = 'https://api.telegram.org/bot5690779760:AAGawGPDoh3EkV2Onqd0T9AowOOkdYhRAuQ/sendMessage?chat_id=1021853106&text="{}{}"'.format(data,"You have reached your consuption limit for Room1")
-                requests.get(base_url)
-        if(data["Energy2"] == Limit2-10):
-                base_url = 'https://api.telegram.org/bot5690779760:AAGawGPDoh3EkV2Onqd0T9AowOOkdYhRAuQ/sendMessage?chat_id=1021853106&text="{}{}"'.format(data,"You are reaching your consuption limit for Room2")
-                requests.get(base_url)
-        if(data["Energy2"] == Limit2):
-                base_url = 'https://api.telegram.org/bot5690779760:AAGawGPDoh3EkV2Onqd0T9AowOOkdYhRAuQ/sendMessage?chat_id=1021853106&text="{}{}"'.format(data,"You have reached your consuption limit for Room2")
-                requests.get(base_url)
-        if(data["Hub"] == LimitHub-10):
-                base_url = 'https://api.telegram.org/bot5690779760:AAGawGPDoh3EkV2Onqd0T9AowOOkdYhRAuQ/sendMessage?chat_id=1021853106&text="{}{}"'.format(data,"You are reaching your consuption limit for Hub")
-                requests.get(base_url)
-        if(data["Hub"] == LimitHub):
-                base_url = 'https://api.telegram.org/bot5690779760:AAGawGPDoh3EkV2Onqd0T9AowOOkdYhRAuQ/sendMessage?chat_id=1021853106&text="{}{}"'.format(data,"You have reached your consuption limit for Hub")
-                requests.get(base_url) 
-        time.sleep(5)
+  Please choose from the following options:
 
+  1. Main meter
+  2. Room01
+  3. Room02
+""")
+@bot.message_handler(content_types=["text"])
+def handle_message(message):
+  if message.text == "1":
+    bot.send_message(message.chat.id,f"The current energy usage for the main meter is: {totalenergy}")
+  elif message.text == "2":
+    bot.send_message(message.chat.id, "The current energy usage for Room01 is: ")
+  elif message.text == "3":
+    bot.send_message(message.chat.id, "The current energy usage for Room02 is: ")
+  else:
+    bot.send_message(message.chat.id, "I don't understand.")
 
-def Mesage():
-    while True:
-        current_time = time.strftime("%H:%M:%S", time.localtime())
-        if(current_time == "23:19:00"):
-                data = ref.get()  # Retrieve data from Firebase
-                base_url = 'https://api.telegram.org/bot5690779760:AAGawGPDoh3EkV2Onqd0T9AowOOkdYhRAuQ/sendMessage?chat_id=1021853106&text="{} at {} in {}"'.format(data,current_time,random.choice(quotes))
-                requests.get(base_url)
-        time.sleep(1)
-
-
-def Alert():
-    while True:
-        data = ref.get()  # Retrieve data from Firebase
-        # update operation (update existing value)
-        db.reference("/").update({"Energy1":data["Energy1"]+5 })
-        db.reference("/").update({"Energy2":data["Energy2"]+5 })
-        db.reference("/").update({"Hub":data["Hub"]+10 })
-        if(data["PIR_State1"] == data["SecurityMode1"] == 1):
-                base_url = 'https://api.telegram.org/bot5690779760:AAGawGPDoh3EkV2Onqd0T9AowOOkdYhRAuQ/sendMessage?chat_id=1021853106&text="{}"'.format("Suspicious activity at Room1")
-                requests.get(base_url)
-        if(data["PIR_State2"] == data["SecurityMode2"] == 1):
-                base_url = 'https://api.telegram.org/bot5690779760:AAGawGPDoh3EkV2Onqd0T9AowOOkdYhRAuQ/sendMessage?chat_id=1021853106&text="{}"'.format("Suspicious activity at Room2")
-                requests.get(base_url)
-        if(data["PIR_StateHub"] == data["SecurityModeHub"] == 1):
-                base_url = 'https://api.telegram.org/bot5690779760:AAGawGPDoh3EkV2Onqd0T9AowOOkdYhRAuQ/sendMessage?chat_id=1021853106&text="{}"'.format("Suspicious activity at Hub")
-                requests.get(base_url)
-        time.sleep(5)
-
-
-
-from telegram.ext import Updater, CommandHandler
-
-def start(update, context):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="Welcome to the Bot")
-
-def room1(update, context):
-    data = ref.get()  # Retrieve data from Firebase
-    category = data["Energy1"]
-    response = f"Cosumption at Room 1 = {category}."
-    context.bot.send_message(chat_id=update.effective_chat.id, text=response)
-def room2(update, context):
-    data = ref.get()  # Retrieve data from Firebase
-    category = data["Energy2"]
-    response = f"Cosumption at Room 2 = {category}."
-    context.bot.send_message(chat_id=update.effective_chat.id, text=response)
-def hub(update, context):
-    data = ref.get()  # Retrieve data from Firebase
-    category = data["Hub"]
-    response = f"Cosumption at HUB = {category}."
-    context.bot.send_message(chat_id=update.effective_chat.id, text=response)
-        
-# Set up the Telegram bot
-TOKEN = "5690779760:AAGawGPDoh3EkV2Onqd0T9AowOOkdYhRAuQ"
-updater = Updater(TOKEN, use_context=True)
-dispatcher = updater.dispatcher
-
-# Add the command handlers
-dispatcher.add_handler(CommandHandler("start", start))
-dispatcher.add_handler(CommandHandler("room1", room1))
-dispatcher.add_handler(CommandHandler("room2", room2))
-dispatcher.add_handler(CommandHandler("hub", hub))
-
-# Start the bot
-updater.start_polling()
-updater.idle()
-
-
-
-Mesage()
-
-MesageLimit()
-
-Alert()
+bot.polling()
